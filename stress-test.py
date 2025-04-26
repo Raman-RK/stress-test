@@ -7,8 +7,8 @@ import csv
 
 # === CONFIGURATION ===
 URL = "https://meetn.com/testmodestart"
-NUM_HITS = 1000
-BATCH_SIZE = 50
+NUM_HITS = 100
+BATCH_SIZE = 5
 TOTAL_TIMEOUT = 60  # Seconds
 
 USER_AGENTS = [
