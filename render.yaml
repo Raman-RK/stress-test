@@ -1,10 +1,11 @@
 services:
-  - type: web
-    name: stress-test
+  - type: worker
+    name: stress-test-worker
     runtime: python
-    plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python stress_test.py
+    plan: starter
+    autoDeploy: false
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python stress-test.py"
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.10
+      - key: PYTHONUNBUFFERED
+        value: "TRUE"
