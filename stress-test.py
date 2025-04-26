@@ -1,14 +1,14 @@
 import time
 import random
 import logging
-import multiprocessing
+import threading
 import undetected_chromedriver as uc
 import csv
 
 # === CONFIGURATION ===
 URL = "https://meetn.com/testmodestart"
-NUM_HITS = 100
-BATCH_SIZE = 5
+NUM_HITS = 1000
+BATCH_SIZE = 50
 TOTAL_TIMEOUT = 60  # Seconds
 
 USER_AGENTS = [
@@ -16,26 +16,27 @@ USER_AGENTS = [
 ]
 
 # === LOGGING SETUP ===
-class ContextFilter(logging.Filter):
-    def filter(self, record):
-        if not hasattr(record, 'hit'):
-            record.hit = 0  # Default hit number if missing
-        return True
-
 logging.basicConfig(
     filename="stress_test.log",
     level=logging.INFO,
-    format="%(asctime)s - Hit#%(hit)d - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-logger = logging.getLogger()
-logger.addFilter(ContextFilter())  # Add the filter
+def get_logger(hit_num=None):
+    logger = logging.getLogger(__name__)
+    if hit_num is not None:
+        prefix = f"[Hit#{hit_num}] "
+    else:
+        prefix = ""
+    return lambda msg: logger.info(prefix + msg)
 
-def launch_browser(hit_num, results):
-    thread_logger = logging.LoggerAdapter(logger, {'hit': hit_num})
+results = []
+
+def launch_browser(hit_num):
+    log = get_logger(hit_num)
 
     try:
-        thread_logger.info("Launching browser")
+        log("Launching browser")
 
         options = uc.ChromeOptions()
         options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
@@ -49,7 +50,7 @@ def launch_browser(hit_num, results):
 
         start_time = time.time()
         driver.get(URL)
-        time.sleep(random.uniform(0.2, 0.5))  # small wait after page load
+        time.sleep(random.uniform(0.2, 0.5))
         load_duration = time.time() - start_time
 
         page_source = driver.page_source.lower()
@@ -67,32 +68,27 @@ def launch_browser(hit_num, results):
         }
         results.append(result)
 
-        thread_logger.info(f"Completed in {load_duration:.2f}s | CAPTCHA: {captcha_detected}")
+        log(f"Completed in {load_duration:.2f}s | CAPTCHA: {captcha_detected}")
 
     except Exception as e:
-        thread_logger.error(f"Failed: {e}")
+        log(f"Failed: {e}")
         results.append({
             "hit": hit_num,
             "status": "Failed",
             "error": str(e)
         })
 
-def run_batch(start_hit, end_hit, results):
-    processes = []
+def run_batch(start_hit, end_hit):
+    threads = []
     for hit_num in range(start_hit, end_hit):
-        p = multiprocessing.Process(target=launch_browser, args=(hit_num, results))
-        p.start()
-        processes.append(p)
+        t = threading.Thread(target=launch_browser, args=(hit_num,))
+        t.start()
+        threads.append(t)
 
-    for p in processes:
-        p.join()
+    for t in threads:
+        t.join()
 
 if __name__ == "__main__":
-    multiprocessing.freeze_support()  # Needed for Windows multiprocessing
-
-    manager = multiprocessing.Manager()
-    results = manager.list()
-
     total_start_time = time.time()
 
     total_batches = (NUM_HITS + BATCH_SIZE - 1) // BATCH_SIZE
@@ -101,7 +97,7 @@ if __name__ == "__main__":
         batch_start = batch_num * BATCH_SIZE + 1
         batch_end = min((batch_num + 1) * BATCH_SIZE + 1, NUM_HITS + 1)
 
-        run_batch(batch_start, batch_end, results)
+        run_batch(batch_start, batch_end)
 
         elapsed = time.time() - total_start_time
         if elapsed > TOTAL_TIMEOUT:
@@ -118,7 +114,7 @@ if __name__ == "__main__":
     print("\n====== SUMMARY ======")
     print(f"Total Attempts: {len(results)}")
     print(f"Successful (no CAPTCHA): {success_count}")
-    print(f" CAPTCHA Triggered: {captcha_count}")
+    print(f"CAPTCHA Triggered: {captcha_count}")
     print(f"Failed Attempts: {failure_count}")
     print(f"Total Time: {round(total_end_time - total_start_time, 2)} seconds")
     print(f"Logs saved in 'stress_test.log'.")
@@ -133,4 +129,4 @@ if __name__ == "__main__":
             if r["status"] in ["Success", "CaptchaTriggered"]:
                 writer.writerow(r)
 
-    print("\n Results saved in 'successful_hits.csv'.")
+    print("\nResults saved in 'successful_hits.csv'.")
