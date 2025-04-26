@@ -8,7 +8,7 @@ import csv
 # === CONFIGURATION ===
 URL = "https://meetn.com/testmodestart"
 NUM_HITS = 1000
-BATCH_SIZE = 20
+BATCH_SIZE = 50
 TOTAL_TIMEOUT = 60  # Seconds
 
 USER_AGENTS = [
@@ -16,17 +16,26 @@ USER_AGENTS = [
 ]
 
 # === LOGGING SETUP ===
+class ContextFilter(logging.Filter):
+    def filter(self, record):
+        if not hasattr(record, 'hit'):
+            record.hit = 0  # Default hit number if missing
+        return True
+
 logging.basicConfig(
     filename="stress_test.log",
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - Hit#%(hit)d - %(levelname)s - %(message)s"
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
+logger.addFilter(ContextFilter())  # Add the filter
 
 def launch_browser(hit_num, results):
+    thread_logger = logging.LoggerAdapter(logger, {'hit': hit_num})
+
     try:
-        logger.info(f"Launching browser | Hit #{hit_num}")
+        thread_logger.info("Launching browser")
 
         options = uc.ChromeOptions()
         options.add_argument(f"user-agent={random.choice(USER_AGENTS)}")
@@ -58,10 +67,10 @@ def launch_browser(hit_num, results):
         }
         results.append(result)
 
-        logger.info(f"Completed Hit #{hit_num} in {load_duration:.2f}s | CAPTCHA: {captcha_detected}")
+        thread_logger.info(f"Completed in {load_duration:.2f}s | CAPTCHA: {captcha_detected}")
 
     except Exception as e:
-        logger.error(f"Hit #{hit_num} Failed: {e}")
+        thread_logger.error(f"Failed: {e}")
         results.append({
             "hit": hit_num,
             "status": "Failed",
@@ -124,4 +133,4 @@ if __name__ == "__main__":
             if r["status"] in ["Success", "CaptchaTriggered"]:
                 writer.writerow(r)
 
-    print("\nResults saved in 'successful_hits.csv'.")
+    print("\n Results saved in 'successful_hits.csv'.")
