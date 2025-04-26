@@ -4,6 +4,7 @@ import logging
 import threading
 import undetected_chromedriver as uc
 import csv
+import requests
 
 # === CONFIGURATION ===
 URL = "https://meetn.com/testmodestart"
@@ -88,6 +89,22 @@ def run_batch(start_hit, end_hit):
     for t in threads:
         t.join()
 
+def upload_file(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            response = requests.put(
+                f"https://transfer.sh/{file_path}",
+                data=f,
+                headers={"Max-Days": "7"}
+            )
+        if response.status_code == 200:
+            print("\n✅ File uploaded successfully!")
+            print(f"🔗 Download Link: {response.text}")
+        else:
+            print(f"❌ Failed to upload file: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Upload exception: {e}")
+
 if __name__ == "__main__":
     total_start_time = time.time()
 
@@ -120,7 +137,8 @@ if __name__ == "__main__":
     print(f"Logs saved in 'stress_test.log'.")
 
     # === SAVE SUCCESSFUL HITS ===
-    with open("successful_hits.csv", "w", newline="", encoding="utf-8") as csvfile:
+    csv_file = "successful_hits.csv"
+    with open(csv_file, "w", newline="", encoding="utf-8") as csvfile:
         fieldnames = ["hit", "duration", "user_agent", "captcha", "status"]
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
@@ -130,3 +148,6 @@ if __name__ == "__main__":
                 writer.writerow(r)
 
     print("\nResults saved in 'successful_hits.csv'.")
+
+    # === AUTO-UPLOAD CSV ===
+    upload_file(csv_file)
