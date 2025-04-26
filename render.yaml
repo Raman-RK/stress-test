@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: stress-test
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python stress_test.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
